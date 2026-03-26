@@ -1,21 +1,153 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>OnlyThings438</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appliance Showcase</title>
     <style>
-        body {
-            font-family: Arial;
-            background-color: #111;
-            color: white;
-            text-align: center;
-        }
-        h1 {
-            color: cyan;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #login, #signup { margin-bottom: 20px; }
+        .post { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .like-btn { cursor: pointer; color: blue; }
     </style>
 </head>
 <body>
-    <h1>Welcome to my site</h1>
-    <p>This is my first real website 🚀</p>
+
+<h1>Home Appliance Showcase</h1>
+
+<!-- User Auth -->
+<div id="auth">
+    <div id="signup">
+        <h3>Sign Up</h3>
+        <input type="email" id="signup-email" placeholder="Email">
+        <input type="password" id="signup-password" placeholder="Password">
+        <button onclick="signup()">Sign Up</button>
+    </div>
+
+    <div id="login">
+        <h3>Log In</h3>
+        <input type="email" id="login-email" placeholder="Email">
+        <input type="password" id="login-password" placeholder="Password">
+        <button onclick="login()">Log In</button>
+    </div>
+
+    <button onclick="logout()">Log Out</button>
+</div>
+
+<!-- New Post -->
+<div id="new-post" style="display:none;">
+    <h3>Show Off Your Appliance</h3>
+    <input type="text" id="appliance-name" placeholder="Appliance Name">
+    <input type="text" id="appliance-image" placeholder="Image URL">
+    <button onclick="createPost()">Post</button>
+</div>
+
+<!-- Posts -->
+<div id="posts">
+    <h2>All Appliances</h2>
+    <div id="post-list"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+    // 1️⃣ Firebase Config (replace with your own project info)
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // 2️⃣ Authentication Functions
+    function signup() {
+        const email = document.getElementById('signup-email').value;
+        const password = document.getElementById('signup-password').value;
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(user => alert("Signed up!"))
+            .catch(err => alert(err.message));
+    }
+
+    function login() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        auth.signInWithEmailAndPassword(email, password)
+            .then(user => alert("Logged in!"))
+            .catch(err => alert(err.message));
+    }
+
+    function logout() {
+        auth.signOut().then(() => alert("Logged out!"));
+    }
+
+    // 3️⃣ Monitor Auth State
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('new-post').style.display = 'block';
+        } else {
+            document.getElementById('new-post').style.display = 'none';
+        }
+        loadPosts(); // refresh posts when auth changes
+    });
+
+    // 4️⃣ Create a Post
+    function createPost() {
+        const name = document.getElementById('appliance-name').value;
+        const image = document.getElementById('appliance-image').value;
+        const userId = auth.currentUser.uid;
+
+        db.collection('posts').add({
+            name,
+            image,
+            userId,
+            likes: 0,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            document.getElementById('appliance-name').value = '';
+            document.getElementById('appliance-image').value = '';
+            loadPosts();
+        });
+    }
+
+    // 5️⃣ Load Posts
+    function loadPosts() {
+        const postList = document.getElementById('post-list');
+        postList.innerHTML = '';
+        db.collection('posts').orderBy('timestamp', 'desc').get()
+        .then(snapshot => {
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const div = document.createElement('div');
+                div.className = 'post';
+                div.innerHTML = `
+                    <h4>${data.name}</h4>
+                    <img src="${data.image}" alt="${data.name}" width="200"><br>
+                    <span class="like-btn" onclick="likePost('${doc.id}')">👍 ${data.likes}</span>
+                `;
+                postList.appendChild(div);
+            });
+        });
+    }
+
+    // 6️⃣ Like a Post
+    function likePost(postId) {
+        const postRef = db.collection('posts').doc(postId);
+        db.runTransaction(transaction => {
+            return transaction.get(postRef).then(doc => {
+                if (!doc.exists) return;
+                const newLikes = (doc.data().likes || 0) + 1;
+                transaction.update(postRef, { likes: newLikes });
+            });
+        }).then(() => loadPosts());
+    }
+</script>
 </body>
 </html>
